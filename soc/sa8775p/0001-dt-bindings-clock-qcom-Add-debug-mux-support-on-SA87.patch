@@ -1,0 +1,81 @@
+From fb23489642e2d73d0cf5fe07a81f25c51d0d0b16 Mon Sep 17 00:00:00 2001
+From: Taniya Das <taniya.das@oss.qualcomm.com>
+Date: Sat, 8 Aug 2026 17:06:35 +0530
+Subject: [PATCH 1/3] dt-bindings: clock: qcom: Add debug mux support on
+ SA8775P
+
+Add debug mux bindings to measure the clock frequencies on the
+Qualcomm SA8775P platform.
+
+Signed-off-by: Taniya Das <taniya.das@oss.qualcomm.com>
+---
+ include/dt-bindings/clock/qcom,sa8775p-camcc.h   | 1 +
+ include/dt-bindings/clock/qcom,sa8775p-dispcc.h  | 1 +
+ include/dt-bindings/clock/qcom,sa8775p-gcc.h     | 1 +
+ include/dt-bindings/clock/qcom,sa8775p-gpucc.h   | 1 +
+ include/dt-bindings/clock/qcom,sa8775p-videocc.h | 1 +
+ 5 files changed, 5 insertions(+)
+
+diff --git a/include/dt-bindings/clock/qcom,sa8775p-camcc.h b/include/dt-bindings/clock/qcom,sa8775p-camcc.h
+index 38531acd699f..27e3e762170d 100644
+--- a/include/dt-bindings/clock/qcom,sa8775p-camcc.h
++++ b/include/dt-bindings/clock/qcom,sa8775p-camcc.h
+@@ -93,6 +93,7 @@
+ #define CAM_CC_SM_OBS_CLK					83
+ #define CAM_CC_XO_CLK_SRC					84
+ #define CAM_CC_QDSS_DEBUG_XO_CLK				85
++#define CAM_CC_DEBUG_MUX					86
+ 
+ /* CAM_CC power domains */
+ #define CAM_CC_TITAN_TOP_GDSC					0
+diff --git a/include/dt-bindings/clock/qcom,sa8775p-dispcc.h b/include/dt-bindings/clock/qcom,sa8775p-dispcc.h
+index e2049e510658..6966c25e1850 100644
+--- a/include/dt-bindings/clock/qcom,sa8775p-dispcc.h
++++ b/include/dt-bindings/clock/qcom,sa8775p-dispcc.h
+@@ -75,6 +75,7 @@
+ #define MDSS_DISP_CC_SM_OBS_CLK					65
+ #define MDSS_DISP_CC_XO_CLK					66
+ #define MDSS_DISP_CC_XO_CLK_SRC					67
++#define MDSS_DISP_CC_DEBUG_MUX					68
+ 
+ /* DISP_CC_0/1 power domains */
+ #define MDSS_DISP_CC_MDSS_CORE_GDSC				0
+diff --git a/include/dt-bindings/clock/qcom,sa8775p-gcc.h b/include/dt-bindings/clock/qcom,sa8775p-gcc.h
+index 01f54234963d..eb04e247f829 100644
+--- a/include/dt-bindings/clock/qcom,sa8775p-gcc.h
++++ b/include/dt-bindings/clock/qcom,sa8775p-gcc.h
+@@ -257,6 +257,7 @@
+ #define GCC_UFS_PHY_ICE_CORE_HW_CTL_CLK			246
+ #define GCC_UFS_PHY_PHY_AUX_HW_CTL_CLK			247
+ #define GCC_UFS_PHY_UNIPRO_CORE_HW_CTL_CLK		248
++#define GCC_DEBUG_MUX					249
+ 
+ /* GCC resets */
+ #define GCC_CAMERA_BCR					0
+diff --git a/include/dt-bindings/clock/qcom,sa8775p-gpucc.h b/include/dt-bindings/clock/qcom,sa8775p-gpucc.h
+index a5fd784b1ea2..70efdef95fb9 100644
+--- a/include/dt-bindings/clock/qcom,sa8775p-gpucc.h
++++ b/include/dt-bindings/clock/qcom,sa8775p-gpucc.h
+@@ -31,6 +31,7 @@
+ #define GPU_CC_MEMNOC_GFX_CLK			20
+ #define GPU_CC_SLEEP_CLK			21
+ #define GPU_CC_XO_CLK_SRC			22
++#define GPU_CC_DEBUG_MUX			23
+ 
+ /* GPU_CC resets */
+ #define GPUCC_GPU_CC_ACD_BCR			0
+diff --git a/include/dt-bindings/clock/qcom,sa8775p-videocc.h b/include/dt-bindings/clock/qcom,sa8775p-videocc.h
+index e6325f68c317..7a7e414702fa 100644
+--- a/include/dt-bindings/clock/qcom,sa8775p-videocc.h
++++ b/include/dt-bindings/clock/qcom,sa8775p-videocc.h
+@@ -28,6 +28,7 @@
+ #define VIDEO_CC_XO_CLK_SRC					18
+ #define VIDEO_PLL0						19
+ #define VIDEO_PLL1						20
++#define VIDEO_CC_DEBUG_MUX					21
+ 
+ /* VIDEO_CC power domains */
+ #define VIDEO_CC_MVS0C_GDSC					0
+-- 
+2.34.1
+

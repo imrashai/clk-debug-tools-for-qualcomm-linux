@@ -1,0 +1,522 @@
+From bb7e7f398ffef3859225bfd0bcbb46ebb780d723 Mon Sep 17 00:00:00 2001
+From: Taniya Das <taniya.das@oss.qualcomm.com>
+Date: Thu, 11 Jun 2026 19:42:12 +0530
+Subject: [PATCH] clk: qcom: clk-debug: Add clock measure functionality
+
+Add the clock measurement infrastructure used to verify clock rates on
+Qualcomm SoCs. A debug mux routes a selected clock to a hardware ring
+oscillator counter, and the measured count is scaled against the XO
+reference to compute the running rate.
+
+The driver exposes the measurement through a debugfs "clk_measure"
+interface and provides the clk_debug_mux type and clk_debug_mux_ops
+that individual clock controllers register to hook their debug muxes
+into the measurement block. The memory controller clock period is read
+from the mccc syscon region to derive the DDR clock frequency.
+
+Signed-off-by: Taniya Das <taniya.das@oss.qualcomm.com>
+---
+ drivers/clk/qcom/Kconfig     |  14 ++
+ drivers/clk/qcom/Makefile    |   1 +
+ drivers/clk/qcom/clk-debug.c | 349 +++++++++++++++++++++++++++++++++++
+ drivers/clk/qcom/clk-debug.h |  95 ++++++++++
+ 4 files changed, 459 insertions(+)
+ create mode 100644 drivers/clk/qcom/clk-debug.c
+ create mode 100644 drivers/clk/qcom/clk-debug.h
+
+diff --git a/drivers/clk/qcom/Kconfig b/drivers/clk/qcom/Kconfig
+index 094d4e85db55..03883537811a 100644
+--- a/drivers/clk/qcom/Kconfig
++++ b/drivers/clk/qcom/Kconfig
+@@ -19,6 +19,20 @@ menuconfig COMMON_CLK_QCOM
+ 
+ if COMMON_CLK_QCOM
+ 
++config CLK_DEBUGCC
++	tristate "Clock debug support for Qualcomm clock controllers"
++	depends on ARM64 || COMPILE_TEST
++	select QCOM_GDSC
++	default ARCH_QCOM
++	help
++	  Support for the clock debug measurement infrastructure found on
++	  Qualcomm SoCs. It exposes a debugfs "clk_measure" interface that
++	  uses the hardware ring-oscillator counter to measure the running
++	  rate of the clocks routed through the debug mux.
++
++	  Say Y or M here if you want to debug clock rates on Qualcomm
++	  platforms. If unsure, say N.
++
+ config CLK_GLYMUR_DISPCC
+ 	tristate "GLYMUR Display Clock Controller"
+ 	depends on ARM64 || COMPILE_TEST
+diff --git a/drivers/clk/qcom/Makefile b/drivers/clk/qcom/Makefile
+index 8bba97053607..e659d108e8b8 100644
+--- a/drivers/clk/qcom/Makefile
++++ b/drivers/clk/qcom/Makefile
+@@ -16,6 +16,7 @@ clk-qcom-$(CONFIG_KRAIT_CLOCKS) += clk-krait.o
+ clk-qcom-y += clk-hfpll.o
+ clk-qcom-y += reset.o
+ clk-qcom-$(CONFIG_QCOM_GDSC) += gdsc.o
++clk-qcom-$(CONFIG_CLK_DEBUGCC) += clk-debug.o
+ 
+ # Keep alphabetically sorted by config
+ obj-$(CONFIG_APQ_GCC_8084) += gcc-apq8084.o
+diff --git a/drivers/clk/qcom/clk-debug.c b/drivers/clk/qcom/clk-debug.c
+new file mode 100644
+index 000000000000..4a13c07e0c8d
+--- /dev/null
++++ b/drivers/clk/qcom/clk-debug.c
+@@ -0,0 +1,349 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++ */
++
++#include <linux/clk.h>
++#include <linux/export.h>
++#include <linux/debugfs.h>
++#include <linux/module.h>
++#include <linux/regmap.h>
++#include <linux/platform_device.h>
++#include <linux/pm_runtime.h>
++#include <linux/clk-provider.h>
++#include <linux/of.h>
++#include <linux/bitops.h>
++#include <linux/mfd/syscon.h>
++#include <trace/events/power.h>
++
++#include "clk-regmap.h"
++#include "clk-debug.h"
++
++static struct clk_hw *measure;
++
++static DEFINE_SPINLOCK(clk_reg_lock);
++static DEFINE_MUTEX(clk_debug_lock);
++
++#define INVALID_MUX_SEL		0xDEADBEEF
++
++#define TCXO_DIV_4_HZ		4800000
++#define SAMPLE_TICKS_1_MS	0x1000
++#define SAMPLE_TICKS_27_MS	0x20000
++
++#define XO_DIV4_CNT_DONE	BIT(25)
++#define CNT_EN			BIT(20)
++#define CLR_CNT			BIT(21)
++#define XO_DIV4_TERM_CNT_MASK	GENMASK(19, 0)
++#define MEASURE_CNT		GENMASK(24, 0)
++#define CBCR_ENA		BIT(0)
++
++/* Sample clock for 'ticks' reference clock ticks. */
++static u32 run_measurement(unsigned int ticks, struct regmap *regmap,
++			   u32 ctl_reg, u32 status_reg)
++{
++	u32 regval;
++	int ret;
++
++	/*
++	 * Clear CNT_EN to bring it to good known state and
++	 * set CLK_CNT to clear previous count.
++	 */
++	regmap_update_bits(regmap, ctl_reg, CNT_EN, 0x0);
++	regmap_update_bits(regmap, ctl_reg, CLR_CNT, CLR_CNT);
++
++	/*
++	 * Wait for timer to become ready
++	 * Ideally SW should poll for MEASURE_CNT
++	 * but since CLR_CNT is not available across targets
++	 * add 1 us delay to let CNT clear /
++	 * counter will clear within 3 reference cycle of 4.8 MHz.
++	 */
++	udelay(1);
++
++	regmap_update_bits(regmap, ctl_reg, CLR_CNT, 0x0);
++
++	/*
++	 * Run measurement and wait for completion.
++	 */
++	regmap_update_bits(regmap, ctl_reg, XO_DIV4_TERM_CNT_MASK,
++			   ticks & XO_DIV4_TERM_CNT_MASK);
++
++	regmap_update_bits(regmap, ctl_reg, CNT_EN, CNT_EN);
++
++	/*
++	 * The measurement runs for up to ~27 ms. Bound the poll so a stuck
++	 * counter cannot spin forever with interrupts disabled.
++	 */
++	ret = regmap_read_poll_timeout_atomic(regmap, status_reg, regval,
++					      regval & XO_DIV4_CNT_DONE,
++					      10, 50 * USEC_PER_MSEC);
++
++	regmap_update_bits(regmap, ctl_reg, CNT_EN, 0x0);
++
++	if (ret)
++		return 0;
++
++	regmap_read(regmap, status_reg, &regval);
++	regval &= MEASURE_CNT;
++
++	return regval;
++}
++
++/*
++ * Perform a hardware rate measurement for a given clock.
++ * FOR DEBUG USE ONLY: Measurements take ~15 ms!
++ */
++static unsigned long clk_debug_mux_measure_rate(struct clk_hw *hw)
++{
++	unsigned long flags, ret = 0;
++	u32 gcc_xo4_reg;
++	u64 raw_count_short, raw_count_full;
++	struct clk_debug_mux *meas = to_clk_measure(hw);
++	struct measure_clk_data *data = meas->priv;
++
++	spin_lock_irqsave(&clk_reg_lock, flags);
++
++	/* Enable CXO/4 and RINGOSC branch. */
++	regmap_read(meas->clkr.regmap, data->xo_div4_cbcr, &gcc_xo4_reg);
++	gcc_xo4_reg |= BIT(0);
++	regmap_write(meas->clkr.regmap, data->xo_div4_cbcr, gcc_xo4_reg);
++
++	/*
++	 * The ring oscillator counter will not reset if the measured clock
++	 * is not running.  To detect this, run a short measurement before
++	 * the full measurement.  If the raw results of the two are the same
++	 * then the clock must be off.
++	 */
++
++	/* Run a short measurement. (~1ms) */
++	raw_count_short = run_measurement(SAMPLE_TICKS_1_MS, meas->clkr.regmap,
++					  data->ctl_reg, data->status_reg);
++
++	/* Run a full measurement. (~27ms) */
++	raw_count_full = run_measurement(SAMPLE_TICKS_27_MS, meas->clkr.regmap,
++					 data->ctl_reg, data->status_reg);
++
++	gcc_xo4_reg &= ~BIT(0);
++	regmap_write(meas->clkr.regmap, data->xo_div4_cbcr, gcc_xo4_reg);
++
++	/* Return 0 if the clock is off. */
++	if (raw_count_full == raw_count_short) {
++		ret = 0;
++	} else {
++		/*
++		 * Compute rate in Hz, scaling counts by 10 and adding a
++		 * rounding term (half the divisor) before the divide.
++		 */
++		raw_count_full = ((raw_count_full * 10) + 15) * TCXO_DIV_4_HZ;
++		do_div(raw_count_full, ((SAMPLE_TICKS_27_MS * 10) + 35));
++		ret = raw_count_full;
++	}
++
++	spin_unlock_irqrestore(&clk_reg_lock, flags);
++
++	return ret;
++}
++
++static int clk_debug_mux_set_mux_sel(struct clk_debug_mux *mux, u32 val)
++{
++	/* Avoid configuring MCCC mux */
++	if (mux->period_offset)
++		return 0;
++
++	return regmap_update_bits(mux->clkr.regmap, mux->debug_offset,
++				  mux->src_sel_mask,
++				  val << mux->src_sel_shift);
++}
++
++static int clk_debug_mux_init(struct clk_hw *hw)
++{
++	struct clk_debug_mux *mux;
++
++	mux = to_clk_measure(hw);
++
++	/* Avoid configuring MCCC mux */
++	if (mux->period_offset)
++		return 0;
++
++	if (mux->post_div_offset != U32_MAX)
++		/* Set the mux's post divider bits */
++		regmap_update_bits(mux->clkr.regmap, mux->post_div_offset,
++				   mux->post_div_mask,
++				   (mux->post_div_val - 1) << mux->post_div_shift);
++
++	return 0;
++}
++
++const struct clk_ops clk_debug_mux_ops = {
++	.debug_init = clk_debug_measure_add,
++	.init = clk_debug_mux_init,
++};
++EXPORT_SYMBOL_GPL(clk_debug_mux_ops);
++
++static int enable_debug_clks(struct clk_hw *mux)
++{
++	struct clk_debug_mux *meas = to_clk_measure(mux);
++	struct clk_debug_mux *p_meas = to_clk_measure(measure);
++
++	meas->en_mask = meas->en_mask ? meas->en_mask : CBCR_ENA;
++
++	/* Not all muxes have a DEBUG clock. */
++	if (meas->cbcr_offset != U32_MAX)
++		regmap_update_bits(meas->clkr.regmap, meas->cbcr_offset,
++				   meas->en_mask, meas->en_mask);
++
++	if (meas != p_meas) {
++		p_meas->en_mask = p_meas->en_mask ? p_meas->en_mask : CBCR_ENA;
++		regmap_update_bits(p_meas->clkr.regmap, p_meas->cbcr_offset,
++				   p_meas->en_mask, p_meas->en_mask);
++	}
++
++	return 0;
++}
++
++static void disable_debug_clks(struct clk_hw *mux)
++{
++	struct clk_debug_mux *meas = to_clk_measure(mux);
++	struct clk_debug_mux *p_meas = to_clk_measure(measure);
++
++	meas->en_mask = meas->en_mask ? meas->en_mask : CBCR_ENA;
++
++	if (meas->cbcr_offset != U32_MAX)
++		regmap_update_bits(meas->clkr.regmap, meas->cbcr_offset,
++				   meas->en_mask, 0);
++
++	if (meas != p_meas) {
++		p_meas->en_mask = p_meas->en_mask ? p_meas->en_mask : CBCR_ENA;
++		regmap_update_bits(p_meas->clkr.regmap, p_meas->cbcr_offset,
++				   p_meas->en_mask, 0);
++	}
++}
++
++static u32 get_mux_divs(struct clk_hw *mux)
++{
++	struct clk_debug_mux *meas = to_clk_measure(mux);
++	struct clk_debug_mux *p_meas = to_clk_measure(measure);
++	u32 div_val, p_div_val;
++
++	WARN_ON(!meas->post_div_val);
++	div_val = meas->post_div_val;
++	p_div_val = p_meas->post_div_val;
++
++	if (meas != p_meas)
++		div_val *= p_div_val;
++
++	return div_val;
++}
++
++static int clk_debug_measure_set(void *data, u64 val)
++{
++	struct clk_hw *hw = data;
++	struct device *dev = clk_hw_get_dev(hw);
++	struct clk_debug_mux *mux = to_clk_measure(hw);
++	int ret;
++
++	if (val == INVALID_MUX_SEL)
++		return -EINVAL;
++
++	if (pm_runtime_enabled(dev)) {
++		ret = pm_runtime_get_sync(dev);
++		if (ret < 0)
++			return ret;
++	}
++
++	mutex_lock(&clk_debug_lock);
++
++	clk_debug_mux_set_mux_sel(mux, val);
++
++	mutex_unlock(&clk_debug_lock);
++
++	if (pm_runtime_enabled(dev))
++		pm_runtime_put(dev);
++
++	return 0;
++}
++
++static int clk_debug_measure_get(void *data, u64 *val)
++{
++	struct clk_hw *hw = data;
++	struct device *dev = clk_hw_get_dev(hw);
++	struct clk_hw *parent, *save_measure;
++	struct clk_debug_mux *mux = NULL;
++	int ret = 0;
++	u32 regval;
++
++	mux = to_clk_measure(hw);
++
++	save_measure = measure;
++	parent = clk_hw_get_parent(hw);
++	measure = parent ? parent : hw;
++	mutex_lock(&clk_debug_lock);
++
++	if (pm_runtime_enabled(dev)) {
++		ret = pm_runtime_get_sync(dev);
++		if (ret < 0) {
++			mutex_unlock(&clk_debug_lock);
++			return ret;
++		}
++	}
++
++	if (mux->mux_sel) {
++		regmap_read(mux->clkr.regmap, mux->period_offset, &regval);
++		if (!regval) {
++			pr_err("Error reading mccc period register\n");
++			goto exit;
++		}
++		*val = 1000000000000UL;
++		do_div(*val, regval);
++	} else {
++		ret = enable_debug_clks(hw);
++		if (ret)
++			goto exit;
++
++		*val = clk_debug_mux_measure_rate(measure);
++
++		/* calculate actual freq */
++		*val *= get_mux_divs(hw);
++		disable_debug_clks(hw);
++	}
++
++exit:
++	if (pm_runtime_enabled(dev))
++		pm_runtime_put(dev);
++
++	mutex_unlock(&clk_debug_lock);
++	measure = save_measure;
++	return ret;
++}
++
++DEFINE_DEBUGFS_ATTRIBUTE(clk_measure_fops, clk_debug_measure_get,
++			 clk_debug_measure_set, "%lld\n");
++
++void clk_debug_measure_add(struct clk_hw *hw, struct dentry *dentry)
++{
++	debugfs_create_file("clk_measure", 0444, dentry, hw, &clk_measure_fops);
++}
++EXPORT_SYMBOL_GPL(clk_debug_measure_add);
++
++int clk_debug_measure_register(struct clk_hw *hw)
++{
++	if (IS_ERR_OR_NULL(measure))
++		measure = hw;
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(clk_debug_measure_register);
++
++#define to_clk_fixed_rate(_hw) container_of(_hw, struct clk_fixed_rate, hw)
++
++static unsigned long clk_fixed_rate_recalc_rate(struct clk_hw *hw,
++						unsigned long parent_rate)
++{
++	return to_clk_fixed_rate(hw)->fixed_rate;
++}
++
++const struct clk_ops clk_fixed_rate_measure_ops = {
++	.recalc_rate = clk_fixed_rate_recalc_rate,
++	.debug_init = clk_debug_measure_add,
++};
++EXPORT_SYMBOL_GPL(clk_fixed_rate_measure_ops);
+diff --git a/drivers/clk/qcom/clk-debug.h b/drivers/clk/qcom/clk-debug.h
+new file mode 100644
+index 000000000000..5bede40ba549
+--- /dev/null
++++ b/drivers/clk/qcom/clk-debug.h
+@@ -0,0 +1,95 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++ */
++
++#ifndef __QCOM_CLK_DEBUG_H__
++#define __QCOM_CLK_DEBUG_H__
++
++#include <linux/platform_device.h>
++#include "../clk.h"
++#include "clk-regmap.h"
++
++/**
++ * struct mux_regmap_names - Structure of mux regmap mapping
++ * @mux:		pointer to a clock debug mux
++ * @regmap_name:	corresponding regmap name used to match a debug mux to
++			its regmap
++ */
++struct mux_regmap_names {
++	struct clk_debug_mux *mux;
++	const char *regmap_name;
++};
++
++/* Debugfs Measure Clocks */
++
++/**
++ * struct measure_clk_data - Structure of clk measure
++ *
++ * @cxo:		XO clock.
++ * @ctl_reg:		offset of debug control register.
++ * @status_reg:		offset of debug status register.
++ * @xo_div4_cbcr:	offset of debug XO/4 div register.
++ */
++struct measure_clk_data {
++	struct clk *cxo;
++	u32 ctl_reg;
++	u32 status_reg;
++	u32 xo_div4_cbcr;
++};
++
++/**
++ * struct clk_debug_mux - Structure of clock debug mux
++ *
++ * @pre_div_vals:	optional divider values for clocks that were pre-divided
++ *			before feeding into the debug muxes
++ * @priv:		private measure_clk_data to be used by debug mux
++ * @en_mask:		indicates the enable bit mask at global clock
++ *			controller debug mux.
++ * @debug_offset:	debug mux offset.
++ * @cbcr_offset:	branch register to turn on debug mux.
++ * @src_sel_mask:	indicates the mask to be used for src selection in
++ *			primary mux.
++ * @src_sel_shift:	indicates the shift required for source selection in
++ *			primary mux.
++ * @post_div_offset:	register with post-divider settings for the debug mux.
++ * @post_div_mask:	indicates the post div mask to be used for the primary
++ *			mux.
++ * @post_div_shift:	indicates the shift required for post divider
++ *			selection in primary mux.
++ * @post_div_val:	indicates the post divider value for the primary mux.
++ * @period_offset:	offset of the period register used to read to determine
++ *			the mc clock period
++ * @mux_sel:		bool value indicates the mccc debug mux.
++ * @list:		list entry to track registered debug muxes.
++ * @clkr:		handle between common and hardware-specific interfaces.
++ */
++struct clk_debug_mux {
++	int *pre_div_vals;
++	void *priv;
++	u32 en_mask;
++	u32 debug_offset;
++	u32 cbcr_offset;
++	u32 src_sel_mask;
++	u32 src_sel_shift;
++	u32 post_div_offset;
++	u32 post_div_mask;
++	u32 post_div_shift;
++	u32 post_div_val;
++	u32 period_offset;
++	bool mux_sel;
++	struct list_head list;
++	struct clk_regmap clkr;
++};
++
++#define hw_to_clk_regmap(_hw) container_of((_hw), struct clk_regmap, hw)
++
++#define to_clk_measure(_hw) container_of(hw_to_clk_regmap(_hw), struct clk_debug_mux, clkr)
++
++extern const struct clk_ops clk_debug_mux_ops;
++extern const struct clk_ops clk_fixed_rate_measure_ops;
++
++int clk_debug_measure_register(struct clk_hw *hw);
++void clk_debug_measure_add(struct clk_hw *hw, struct dentry *dentry);
++
++#endif
+-- 
+2.34.1
+

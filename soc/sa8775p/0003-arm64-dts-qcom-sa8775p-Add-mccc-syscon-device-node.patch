@@ -1,0 +1,42 @@
+From d7c97a10c3cdbf06efc90c3ae79bab53e31117ac Mon Sep 17 00:00:00 2001
+From: Taniya Das <taniya.das@oss.qualcomm.com>
+Date: Sat, 8 Aug 2026 17:11:30 +0530
+Subject: [PATCH 3/3] arm64: dts: qcom: sa8775p: Add mccc syscon device node
+
+Add the memory controller clock controller (mccc) syscon node and wire
+it to the global clock controller through the qcom,mccc phandle. This
+lets the gcc debug mux read the memory controller clock period for
+frequency measurement on the Qualcomm SA8775P platform.
+
+Signed-off-by: Taniya Das <taniya.das@oss.qualcomm.com>
+---
+ arch/arm64/boot/dts/qcom/lemans.dtsi | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/lemans.dtsi b/arch/arm64/boot/dts/qcom/lemans.dtsi
+index f29538aa0f48..cdba6d053ce5 100644
+--- a/arch/arm64/boot/dts/qcom/lemans.dtsi
++++ b/arch/arm64/boot/dts/qcom/lemans.dtsi
+@@ -1092,6 +1092,11 @@ soc: soc@0 {
+ 		#size-cells = <2>;
+ 		ranges = <0 0 0 0 0x10 0>;
+ 
++		mccc: syscon@90ba000 {
++			compatible = "syscon";
++			reg = <0x0 0x090ba000 0x0 0x54>;
++		};
++
+ 		gcc: clock-controller@100000 {
+ 			compatible = "qcom,sa8775p-gcc";
+ 			reg = <0x0 0x00100000 0x0 0xc7018>;
+@@ -1114,6 +1119,7 @@ gcc: clock-controller@100000 {
+ 				 <0>,
+ 				 <0>;
+ 			power-domains = <&rpmhpd SA8775P_CX>;
++			qcom,mccc = <&mccc>;
+ 		};
+ 
+ 		ipcc: mailbox@408000 {
+-- 
+2.34.1
+

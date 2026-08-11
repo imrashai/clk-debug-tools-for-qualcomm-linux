@@ -1,0 +1,353 @@
+From 6178954faa23c1bd276a97dc03a4144dfe360d01 Mon Sep 17 00:00:00 2001
+From: Taniya Das <taniya.das@oss.qualcomm.com>
+Date: Sat, 8 Aug 2026 17:08:23 +0530
+Subject: [PATCH 2/3] clk: qcom: sa8775p: Add debug mux for clock controllers
+
+Add debug mux support for the clock controllers to measure the clock
+frequencies on the Qualcomm SA8775P platform.
+
+Signed-off-by: Taniya Das <taniya.das@oss.qualcomm.com>
+---
+ drivers/clk/qcom/camcc-sa8775p.c   | 24 +++++++++++++++
+ drivers/clk/qcom/dispcc0-sa8775p.c | 24 +++++++++++++++
+ drivers/clk/qcom/dispcc1-sa8775p.c | 24 +++++++++++++++
+ drivers/clk/qcom/gcc-sa8775p.c     | 48 ++++++++++++++++++++++++++++++
+ drivers/clk/qcom/gpucc-sa8775p.c   | 24 +++++++++++++++
+ drivers/clk/qcom/videocc-sa8775p.c | 24 +++++++++++++++
+ 6 files changed, 168 insertions(+)
+
+diff --git a/drivers/clk/qcom/camcc-sa8775p.c b/drivers/clk/qcom/camcc-sa8775p.c
+index 50e5a131261b..241517ea1a5b 100644
+--- a/drivers/clk/qcom/camcc-sa8775p.c
++++ b/drivers/clk/qcom/camcc-sa8775p.c
+@@ -14,6 +14,7 @@
+ 
+ #include "clk-alpha-pll.h"
+ #include "clk-branch.h"
++#include "clk-debug.h"
+ #include "clk-pll.h"
+ #include "clk-rcg.h"
+ #include "clk-regmap.h"
+@@ -1699,6 +1700,28 @@ static struct clk_branch cam_cc_titan_top_accu_shift_clk = {
+ 	},
+ };
+ 
++static struct clk_debug_mux cam_cc_debug_mux = {
++	.debug_offset = 0x150f8,
++	.post_div_offset = 0x14004,
++	.cbcr_offset = 0x14008,
++	.src_sel_mask = 0xff,
++	.src_sel_shift = 0,
++	.post_div_mask = 0xf,
++	.post_div_shift = 0,
++	.post_div_val = 4,
++	.clkr = {
++		.hw.init = &(const struct clk_init_data) {
++			.name = "cam_cc_debug_mux",
++			.parent_data = &(const struct clk_parent_data) {
++				.fw_name = "gcc_debug_mux",
++				.name = "gcc_debug_mux",
++			},
++			.num_parents = 1,
++			.ops = &clk_debug_mux_ops,
++		},
++	},
++};
++
+ static struct gdsc cam_cc_titan_top_gdsc = {
+ 	.gdscr = 0x131bc,
+ 	.en_rest_wait_val = 0x2,
+@@ -1796,6 +1819,7 @@ static struct clk_regmap *cam_cc_sa8775p_clocks[] = {
+ 	[CAM_CC_TITAN_TOP_ACCU_SHIFT_CLK] = NULL,
+ 	[CAM_CC_XO_CLK_SRC] = &cam_cc_xo_clk_src.clkr,
+ 	[CAM_CC_QDSS_DEBUG_XO_CLK] = &cam_cc_qdss_debug_xo_clk.clkr,
++	[CAM_CC_DEBUG_MUX] = &cam_cc_debug_mux.clkr,
+ };
+ 
+ static struct gdsc *cam_cc_sa8775p_gdscs[] = {
+diff --git a/drivers/clk/qcom/dispcc0-sa8775p.c b/drivers/clk/qcom/dispcc0-sa8775p.c
+index b248fa970587..f6d883763c9c 100644
+--- a/drivers/clk/qcom/dispcc0-sa8775p.c
++++ b/drivers/clk/qcom/dispcc0-sa8775p.c
+@@ -14,6 +14,7 @@
+ 
+ #include "clk-alpha-pll.h"
+ #include "clk-branch.h"
++#include "clk-debug.h"
+ #include "clk-pll.h"
+ #include "clk-rcg.h"
+ #include "clk-regmap.h"
+@@ -1300,6 +1301,28 @@ static struct clk_branch mdss_0_disp_cc_sm_obs_clk = {
+ 	},
+ };
+ 
++static struct clk_debug_mux disp_cc_0_debug_mux = {
++	.debug_offset = 0x11000,
++	.post_div_offset = 0xb000,
++	.cbcr_offset = 0xb004,
++	.src_sel_mask = 0xff,
++	.src_sel_shift = 0,
++	.post_div_mask = 0xf,
++	.post_div_shift = 0,
++	.post_div_val = 4,
++	.clkr = {
++		.hw.init = &(const struct clk_init_data) {
++			.name = "disp_cc_0_debug_mux",
++			.parent_data = &(const struct clk_parent_data) {
++				.fw_name = "gcc_debug_mux",
++				.name = "gcc_debug_mux",
++			},
++			.num_parents = 1,
++			.ops = &clk_debug_mux_ops,
++		},
++	},
++};
++
+ static struct gdsc mdss_0_disp_cc_mdss_core_gdsc = {
+ 	.gdscr = 0x9000,
+ 	.en_rest_wait_val = 0x2,
+@@ -1395,6 +1418,7 @@ static struct clk_regmap *disp_cc_0_sa8775p_clocks[] = {
+ 	[MDSS_DISP_CC_SLEEP_CLK_SRC] = &mdss_0_disp_cc_sleep_clk_src.clkr,
+ 	[MDSS_DISP_CC_SM_OBS_CLK] = &mdss_0_disp_cc_sm_obs_clk.clkr,
+ 	[MDSS_DISP_CC_XO_CLK_SRC] = &mdss_0_disp_cc_xo_clk_src.clkr,
++	[MDSS_DISP_CC_DEBUG_MUX] = &disp_cc_0_debug_mux.clkr,
+ };
+ 
+ static struct gdsc *disp_cc_0_sa8775p_gdscs[] = {
+diff --git a/drivers/clk/qcom/dispcc1-sa8775p.c b/drivers/clk/qcom/dispcc1-sa8775p.c
+index 9882edbb79f9..e7a45a70bf03 100644
+--- a/drivers/clk/qcom/dispcc1-sa8775p.c
++++ b/drivers/clk/qcom/dispcc1-sa8775p.c
+@@ -14,6 +14,7 @@
+ 
+ #include "clk-alpha-pll.h"
+ #include "clk-branch.h"
++#include "clk-debug.h"
+ #include "clk-pll.h"
+ #include "clk-rcg.h"
+ #include "clk-regmap.h"
+@@ -1300,6 +1301,28 @@ static struct clk_branch mdss_1_disp_cc_sm_obs_clk = {
+ 	},
+ };
+ 
++static struct clk_debug_mux disp_cc_1_debug_mux = {
++	.debug_offset = 0x11000,
++	.post_div_offset = 0xb000,
++	.cbcr_offset = 0xb004,
++	.src_sel_mask = 0xff,
++	.src_sel_shift = 0,
++	.post_div_mask = 0xf,
++	.post_div_shift = 0,
++	.post_div_val = 4,
++	.clkr = {
++		.hw.init = &(const struct clk_init_data) {
++			.name = "disp_cc_1_debug_mux",
++			.parent_data = &(const struct clk_parent_data) {
++				.fw_name = "gcc_debug_mux",
++				.name = "gcc_debug_mux",
++			},
++			.num_parents = 1,
++			.ops = &clk_debug_mux_ops,
++		},
++	},
++};
++
+ static struct gdsc mdss_1_disp_cc_mdss_core_gdsc = {
+ 	.gdscr = 0x9000,
+ 	.en_rest_wait_val = 0x2,
+@@ -1395,6 +1418,7 @@ static struct clk_regmap *disp_cc_1_sa8775p_clocks[] = {
+ 	[MDSS_DISP_CC_SLEEP_CLK_SRC] = &mdss_1_disp_cc_sleep_clk_src.clkr,
+ 	[MDSS_DISP_CC_SM_OBS_CLK] = &mdss_1_disp_cc_sm_obs_clk.clkr,
+ 	[MDSS_DISP_CC_XO_CLK_SRC] = &mdss_1_disp_cc_xo_clk_src.clkr,
++	[MDSS_DISP_CC_DEBUG_MUX] = &disp_cc_1_debug_mux.clkr,
+ };
+ 
+ static struct gdsc *disp_cc_1_sa8775p_gdscs[] = {
+diff --git a/drivers/clk/qcom/gcc-sa8775p.c b/drivers/clk/qcom/gcc-sa8775p.c
+index d7d1ba6ad6af..dc60fe4e6197 100644
+--- a/drivers/clk/qcom/gcc-sa8775p.c
++++ b/drivers/clk/qcom/gcc-sa8775p.c
+@@ -5,6 +5,7 @@
+  */
+ 
+ #include <linux/clk-provider.h>
++#include <linux/mfd/syscon.h>
+ #include <linux/module.h>
+ #include <linux/mod_devicetable.h>
+ #include <linux/of.h>
+@@ -15,6 +16,7 @@
+ 
+ #include "clk-alpha-pll.h"
+ #include "clk-branch.h"
++#include "clk-debug.h"
+ #include "clk-rcg.h"
+ #include "clk-regmap.h"
+ #include "clk-regmap-divider.h"
+@@ -4201,6 +4203,41 @@ static struct clk_branch gcc_video_axi1_clk = {
+ 	},
+ };
+ 
++static struct measure_clk_data debug_mux_priv = {
++	.ctl_reg = 0x72038,
++	.status_reg = 0x7203c,
++	.xo_div4_cbcr = 0x6e008,
++};
++
++static struct clk_debug_mux mc_cc_debug_mux = {
++	.period_offset = 0x50,
++	.mux_sel = true,
++	.clkr = {
++		.hw.init = &(struct clk_init_data) {
++			.name = "mc_cc_debug_mux",
++			.ops = &clk_debug_mux_ops,
++		},
++	},
++};
++
++static struct clk_debug_mux gcc_debug_mux = {
++	.priv = &debug_mux_priv,
++	.debug_offset = 0x72024,
++	.post_div_offset = 0x6e000,
++	.cbcr_offset = 0x6e004,
++	.src_sel_mask = 0x1fff,
++	.src_sel_shift = 0,
++	.post_div_mask = 0xf,
++	.post_div_shift = 0,
++	.post_div_val = 2,
++	.clkr = {
++		.hw.init = &(const struct clk_init_data) {
++			.name = "gcc_debug_mux",
++			.ops = &clk_debug_mux_ops,
++		},
++	},
++};
++
+ static struct gdsc pcie_0_gdsc = {
+ 	.gdscr = 0xa9004,
+ 	.collapse_ctrl = 0x4b104,
+@@ -4549,6 +4586,7 @@ static struct clk_regmap *gcc_sa8775p_clocks[] = {
+ 	[GCC_USB_CLKREF_EN] = &gcc_usb_clkref_en.clkr,
+ 	[GCC_VIDEO_AXI0_CLK] = &gcc_video_axi0_clk.clkr,
+ 	[GCC_VIDEO_AXI1_CLK] = &gcc_video_axi1_clk.clkr,
++	[GCC_DEBUG_MUX] = &gcc_debug_mux.clkr,
+ };
+ 
+ static const struct qcom_reset_map gcc_sa8775p_resets[] = {
+@@ -4689,6 +4727,16 @@ static int gcc_sa8775p_probe(struct platform_device *pdev)
+ 	/* FORCE_MEM_CORE_ON for ufs phy ice core clocks */
+ 	qcom_branch_set_force_mem_core(regmap, gcc_ufs_phy_ice_core_clk, true);
+ 
++	/* Register mc_cc_debug_mux */
++	mc_cc_debug_mux.clkr.regmap =
++		syscon_regmap_lookup_by_phandle(pdev->dev.of_node, "qcom,mccc");
++	if (IS_ERR(mc_cc_debug_mux.clkr.regmap))
++		return PTR_ERR(mc_cc_debug_mux.clkr.regmap);
++
++	ret = devm_clk_hw_register(&pdev->dev, &mc_cc_debug_mux.clkr.hw);
++	if (ret)
++		return ret;
++
+ 	return qcom_cc_really_probe(&pdev->dev, &gcc_sa8775p_desc, regmap);
+ }
+ 
+diff --git a/drivers/clk/qcom/gpucc-sa8775p.c b/drivers/clk/qcom/gpucc-sa8775p.c
+index 25dcc5912f99..1aa7e242dcc4 100644
+--- a/drivers/clk/qcom/gpucc-sa8775p.c
++++ b/drivers/clk/qcom/gpucc-sa8775p.c
+@@ -16,6 +16,7 @@
+ 
+ #include "clk-alpha-pll.h"
+ #include "clk-branch.h"
++#include "clk-debug.h"
+ #include "clk-rcg.h"
+ #include "clk-regmap.h"
+ #include "clk-regmap-divider.h"
+@@ -531,6 +532,28 @@ static struct clk_branch gpu_cc_sleep_clk = {
+ 	},
+ };
+ 
++static struct clk_debug_mux gpu_cc_debug_mux = {
++	.debug_offset = 0x9564,
++	.post_div_offset = 0x9270,
++	.cbcr_offset = 0x9274,
++	.src_sel_mask = 0xff,
++	.src_sel_shift = 0,
++	.post_div_mask = 0xf,
++	.post_div_shift = 0,
++	.post_div_val = 2,
++	.clkr = {
++		.hw.init = &(const struct clk_init_data) {
++			.name = "gpu_cc_debug_mux",
++			.parent_data = &(const struct clk_parent_data) {
++				.fw_name = "gcc_debug_mux",
++				.name = "gcc_debug_mux",
++			},
++			.num_parents = 1,
++			.ops = &clk_debug_mux_ops,
++		},
++	},
++};
++
+ static struct clk_regmap *gpu_cc_sa8775p_clocks[] = {
+ 	[GPU_CC_AHB_CLK] = &gpu_cc_ahb_clk.clkr,
+ 	[GPU_CC_CB_CLK] = &gpu_cc_cb_clk.clkr,
+@@ -557,6 +580,7 @@ static struct clk_regmap *gpu_cc_sa8775p_clocks[] = {
+ 	[GPU_CC_PLL1] = &gpu_cc_pll1.clkr,
+ 	[GPU_CC_SLEEP_CLK] = &gpu_cc_sleep_clk.clkr,
+ 	[GPU_CC_XO_CLK_SRC] = &gpu_cc_xo_clk_src.clkr,
++	[GPU_CC_DEBUG_MUX] = &gpu_cc_debug_mux.clkr,
+ };
+ 
+ static struct gdsc cx_gdsc = {
+diff --git a/drivers/clk/qcom/videocc-sa8775p.c b/drivers/clk/qcom/videocc-sa8775p.c
+index 2476201dcd20..c38812205cce 100644
+--- a/drivers/clk/qcom/videocc-sa8775p.c
++++ b/drivers/clk/qcom/videocc-sa8775p.c
+@@ -15,6 +15,7 @@
+ 
+ #include "clk-alpha-pll.h"
+ #include "clk-branch.h"
++#include "clk-debug.h"
+ #include "clk-pll.h"
+ #include "clk-rcg.h"
+ #include "clk-regmap.h"
+@@ -416,6 +417,28 @@ static struct clk_branch video_cc_sm_obs_clk = {
+ 	},
+ };
+ 
++static struct clk_debug_mux video_cc_debug_mux = {
++	.debug_offset = 0x9a4c,
++	.post_div_offset = 0x80f0,
++	.cbcr_offset = 0x80f4,
++	.src_sel_mask = 0x3f,
++	.src_sel_shift = 0,
++	.post_div_mask = 0xf,
++	.post_div_shift = 0,
++	.post_div_val = 3,
++	.clkr = {
++		.hw.init = &(const struct clk_init_data) {
++			.name = "video_cc_debug_mux",
++			.parent_data = &(const struct clk_parent_data) {
++				.fw_name = "gcc_debug_mux",
++				.name = "gcc_debug_mux",
++			},
++			.num_parents = 1,
++			.ops = &clk_debug_mux_ops,
++		},
++	},
++};
++
+ static struct gdsc video_cc_mvs0c_gdsc = {
+ 	.gdscr = 0x804c,
+ 	.en_rest_wait_val = 0x2,
+@@ -485,6 +508,7 @@ static struct clk_regmap *video_cc_sa8775p_clocks[] = {
+ 	[VIDEO_CC_XO_CLK_SRC] = &video_cc_xo_clk_src.clkr,
+ 	[VIDEO_PLL0] = &video_pll0.clkr,
+ 	[VIDEO_PLL1] = &video_pll1.clkr,
++	[VIDEO_CC_DEBUG_MUX] = &video_cc_debug_mux.clkr,
+ };
+ 
+ static struct gdsc *video_cc_sa8775p_gdscs[] = {
+-- 
+2.34.1
+

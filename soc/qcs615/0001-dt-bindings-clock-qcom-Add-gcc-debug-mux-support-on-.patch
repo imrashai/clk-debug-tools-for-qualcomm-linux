@@ -1,0 +1,29 @@
+From 77131fc171ecd33026b2f37102529032f59e8c23 Mon Sep 17 00:00:00 2001
+From: Taniya Das <taniya.das@oss.qualcomm.com>
+Date: Wed, 19 Aug 2026 15:55:31 +0530
+Subject: [PATCH 1/3] dt-bindings: clock: qcom: Add gcc debug mux support on
+ QCS615
+
+Add gcc debug mux bindings to measure the clock frequencies on the
+Qualcomm QCS615 platform.
+
+Signed-off-by: Taniya Das <taniya.das@oss.qualcomm.com>
+---
+ include/dt-bindings/clock/qcom,qcs615-gcc.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/dt-bindings/clock/qcom,qcs615-gcc.h b/include/dt-bindings/clock/qcom,qcs615-gcc.h
+index 9704091636b8..6f7331e98ae3 100644
+--- a/include/dt-bindings/clock/qcom,qcs615-gcc.h
++++ b/include/dt-bindings/clock/qcom,qcs615-gcc.h
+@@ -174,6 +174,7 @@
+ #define GCC_UFS_PHY_ICE_CORE_HW_CTL_CLK				164
+ #define GCC_UFS_PHY_PHY_AUX_HW_CTL_CLK				165
+ #define GCC_UFS_PHY_UNIPRO_CORE_HW_CTL_CLK			166
++#define GCC_DEBUG_MUX						167
+ 
+ /* GCC Resets */
+ #define GCC_EMAC_BCR                                            0
+-- 
+2.34.1
+

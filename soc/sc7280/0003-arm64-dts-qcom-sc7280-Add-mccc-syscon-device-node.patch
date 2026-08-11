@@ -1,0 +1,42 @@
+From f8e18a25fc71b3af65f7f6a78ae7752197ea4f8c Mon Sep 17 00:00:00 2001
+From: Taniya Das <taniya.das@oss.qualcomm.com>
+Date: Fri, 14 Aug 2026 10:46:07 +0530
+Subject: [PATCH 3/3] arm64: dts: qcom: sc7280: Add mccc syscon device node
+
+Add the memory controller clock controller (mccc) syscon node and wire
+it to the global clock controller through the qcom,mccc phandle. This
+lets the gcc debug mux read the memory controller clock period for
+frequency measurement on the Qualcomm SC7280 platform.
+
+Signed-off-by: Taniya Das <taniya.das@oss.qualcomm.com>
+---
+ arch/arm64/boot/dts/qcom/sc7280.dtsi | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sc7280.dtsi b/arch/arm64/boot/dts/qcom/sc7280.dtsi
+index 51dcd3179684..8900bf0758da 100644
+--- a/arch/arm64/boot/dts/qcom/sc7280.dtsi
++++ b/arch/arm64/boot/dts/qcom/sc7280.dtsi
+@@ -974,6 +974,11 @@ soc: soc@0 {
+ 		dma-ranges = <0 0 0 0 0x10 0>;
+ 		compatible = "simple-bus";
+ 
++		mccc: syscon@90ba000 {
++			compatible = "syscon";
++			reg = <0x0 0x090ba000 0x0 0x54>;
++		};
++
+ 		gcc: clock-controller@100000 {
+ 			compatible = "qcom,gcc-sc7280";
+ 			reg = <0 0x00100000 0 0x1f0000>;
+@@ -987,6 +992,7 @@ gcc: clock-controller@100000 {
+ 				      "ufs_phy_rx_symbol_0_clk", "ufs_phy_rx_symbol_1_clk",
+ 				      "ufs_phy_tx_symbol_0_clk",
+ 				      "usb3_phy_wrapper_gcc_usb30_pipe_clk";
++			qcom,mccc = <&mccc>;
+ 			#clock-cells = <1>;
+ 			#reset-cells = <1>;
+ 			#power-domain-cells = <1>;
+-- 
+2.34.1
+

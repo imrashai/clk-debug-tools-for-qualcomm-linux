@@ -1,0 +1,43 @@
+From d862d9b30d0348f3bf595913b208310c436cf6d8 Mon Sep 17 00:00:00 2001
+From: Taniya Das <taniya.das@oss.qualcomm.com>
+Date: Wed, 19 Aug 2026 16:04:58 +0530
+Subject: [PATCH 3/3] arm64: dts: qcom: talos: Add mccc syscon device node
+
+Add the memory controller clock controller (mccc) syscon node and wire
+it to the global clock controller through the qcom,mccc phandle. This
+lets the gcc debug mux read the memory controller clock period for
+frequency measurement on the Qualcomm QCS615 platform.
+
+Signed-off-by: Taniya Das <taniya.das@oss.qualcomm.com>
+---
+ arch/arm64/boot/dts/qcom/talos.dtsi | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/talos.dtsi b/arch/arm64/boot/dts/qcom/talos.dtsi
+index 90c183cbe95f..32e5ef968285 100644
+--- a/arch/arm64/boot/dts/qcom/talos.dtsi
++++ b/arch/arm64/boot/dts/qcom/talos.dtsi
+@@ -749,6 +749,8 @@ gcc: clock-controller@100000 {
+ 				      "bi_tcxo_ao",
+ 				      "sleep_clk";
+ 
++			qcom,mccc = <&mccc>;
++
+ 			#clock-cells = <1>;
+ 			#reset-cells = <1>;
+ 			#power-domain-cells = <1>;
+@@ -3976,6 +3978,11 @@ opp-1 {
+ 			};
+ 		};
+ 
++		mccc: syscon@90ba000 {
++			compatible = "syscon";
++			reg = <0x0 0x090ba000 0x0 0x54>;
++		};
++
+ 		pmu@90cd000 {
+ 			compatible = "qcom,qcs615-llcc-bwmon", "qcom,sc7280-llcc-bwmon";
+ 			reg = <0x0 0x090cd000 0x0 0x1000>;
+-- 
+2.34.1
+

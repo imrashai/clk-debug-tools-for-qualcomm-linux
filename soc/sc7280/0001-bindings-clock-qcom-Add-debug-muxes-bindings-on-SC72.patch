@@ -1,0 +1,80 @@
+From 9ba3af29107559fa8700ee2b1a1449d65d43743f Mon Sep 17 00:00:00 2001
+From: Taniya Das <taniya.das@oss.qualcomm.com>
+Date: Sat, 8 Aug 2026 16:28:25 +0530
+Subject: [PATCH 1/3] bindings: clock: qcom: Add debug muxes bindings on SC7280
+
+Add debug mux bindings to measure the clock frequencies on
+Qualcomm SC7280 platform.
+
+Signed-off-by: Taniya Das <taniya.das@oss.qualcomm.com>
+---
+ include/dt-bindings/clock/qcom,camcc-sc7280.h   | 1 +
+ include/dt-bindings/clock/qcom,dispcc-sc7280.h  | 1 +
+ include/dt-bindings/clock/qcom,gcc-sc7280.h     | 1 +
+ include/dt-bindings/clock/qcom,gpucc-sc7280.h   | 1 +
+ include/dt-bindings/clock/qcom,videocc-sc7280.h | 1 +
+ 5 files changed, 5 insertions(+)
+
+diff --git a/include/dt-bindings/clock/qcom,camcc-sc7280.h b/include/dt-bindings/clock/qcom,camcc-sc7280.h
+index 56640f407309..4284639b4a5e 100644
+--- a/include/dt-bindings/clock/qcom,camcc-sc7280.h
++++ b/include/dt-bindings/clock/qcom,camcc-sc7280.h
+@@ -115,6 +115,7 @@
+ #define CAM_CC_SLEEP_CLK_SRC			105
+ #define CAM_CC_SLOW_AHB_CLK_SRC			106
+ #define CAM_CC_XO_CLK_SRC			107
++#define CAM_CC_DEBUG_MUX			108
+ 
+ /* CAM_CC power domains */
+ #define CAM_CC_BPS_GDSC				0
+diff --git a/include/dt-bindings/clock/qcom,dispcc-sc7280.h b/include/dt-bindings/clock/qcom,dispcc-sc7280.h
+index 9f113f346be8..7f8e199d82e4 100644
+--- a/include/dt-bindings/clock/qcom,dispcc-sc7280.h
++++ b/include/dt-bindings/clock/qcom,dispcc-sc7280.h
+@@ -48,6 +48,7 @@
+ #define DISP_CC_MDSS_VSYNC_CLK_SRC			38
+ #define DISP_CC_SLEEP_CLK				39
+ #define DISP_CC_XO_CLK					40
++#define DISP_CC_DEBUG_MUX				41
+ 
+ /* DISP_CC power domains */
+ #define DISP_CC_MDSS_CORE_GDSC				0
+diff --git a/include/dt-bindings/clock/qcom,gcc-sc7280.h b/include/dt-bindings/clock/qcom,gcc-sc7280.h
+index 3d5724b79bff..460f5769f9c8 100644
+--- a/include/dt-bindings/clock/qcom,gcc-sc7280.h
++++ b/include/dt-bindings/clock/qcom,gcc-sc7280.h
+@@ -192,6 +192,7 @@
+ #define GCC_WPSS_RSCP_CLK				182
+ #define GCC_EDP_CLKREF_EN				183
+ #define GCC_SEC_CTRL_CLK_SRC				184
++#define GCC_DEBUG_MUX					185
+ 
+ /* GCC power domains */
+ #define GCC_PCIE_0_GDSC					0
+diff --git a/include/dt-bindings/clock/qcom,gpucc-sc7280.h b/include/dt-bindings/clock/qcom,gpucc-sc7280.h
+index 669b23b606ba..43e68ddea8ed 100644
+--- a/include/dt-bindings/clock/qcom,gpucc-sc7280.h
++++ b/include/dt-bindings/clock/qcom,gpucc-sc7280.h
+@@ -27,6 +27,7 @@
+ #define GPU_CC_MND1X_0_GFX3D_CLK		17
+ #define GPU_CC_MND1X_1_GFX3D_CLK		18
+ #define GPU_CC_SLEEP_CLK			19
++#define GPU_CC_DEBUG_MUX			20
+ 
+ /* GPU_CC power domains */
+ #define GPU_CC_CX_GDSC				0
+diff --git a/include/dt-bindings/clock/qcom,videocc-sc7280.h b/include/dt-bindings/clock/qcom,videocc-sc7280.h
+index 9e00c3a5f75e..7a5b319059be 100644
+--- a/include/dt-bindings/clock/qcom,videocc-sc7280.h
++++ b/include/dt-bindings/clock/qcom,videocc-sc7280.h
+@@ -19,6 +19,7 @@
+ #define VIDEO_CC_VENUS_AHB_CLK			9
+ #define VIDEO_CC_XO_CLK				10
+ #define VIDEO_CC_XO_CLK_SRC			11
++#define VIDEO_CC_DEBUG_MUX			12
+ 
+ /* VIDEO_CC power domains */
+ #define MVS0_GDSC				0
+-- 
+2.34.1
+

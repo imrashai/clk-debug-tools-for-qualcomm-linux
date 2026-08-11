@@ -1,0 +1,106 @@
+From 65b9b5a916eb061da82414a5104009cb7abf09e9 Mon Sep 17 00:00:00 2001
+From: Taniya Das <taniya.das@oss.qualcomm.com>
+Date: Wed, 19 Aug 2026 15:55:39 +0530
+Subject: [PATCH 2/3] clk: qcom: qcs615: Add debug mux for global clock
+ controller
+
+Add debug mux support for the global clock controller to measure the
+clock frequencies on the Qualcomm QCS615 platform. The gcc debug mux
+routes clocks to the measurement block, and the mc debug mux reads the
+memory controller clock period via the mccc syscon region.
+
+Signed-off-by: Taniya Das <taniya.das@oss.qualcomm.com>
+---
+ drivers/clk/qcom/gcc-qcs615.c | 48 +++++++++++++++++++++++++++++++++++
+ 1 file changed, 48 insertions(+)
+
+diff --git a/drivers/clk/qcom/gcc-qcs615.c b/drivers/clk/qcom/gcc-qcs615.c
+index 4e2a9879951f..b674c1fead33 100644
+--- a/drivers/clk/qcom/gcc-qcs615.c
++++ b/drivers/clk/qcom/gcc-qcs615.c
+@@ -4,6 +4,7 @@
+  */
+ 
+ #include <linux/clk-provider.h>
++#include <linux/mfd/syscon.h>
+ #include <linux/module.h>
+ #include <linux/mod_devicetable.h>
+ #include <linux/of.h>
+@@ -14,6 +15,7 @@
+ 
+ #include "clk-alpha-pll.h"
+ #include "clk-branch.h"
++#include "clk-debug.h"
+ #include "clk-rcg.h"
+ #include "clk-regmap.h"
+ #include "clk-regmap-divider.h"
+@@ -2630,6 +2632,41 @@ static struct clk_branch gcc_video_axi0_clk = {
+ 	},
+ };
+ 
++static struct measure_clk_data debug_mux_priv = {
++	.ctl_reg = 0x62038,
++	.status_reg = 0x6203c,
++	.xo_div4_cbcr = 0x43008,
++};
++
++static struct clk_debug_mux mc_cc_debug_mux = {
++	.period_offset = 0x50,
++	.mux_sel = true,
++	.clkr = {
++		.hw.init = &(struct clk_init_data) {
++			.name = "mc_cc_debug_mux",
++			.ops = &clk_debug_mux_ops,
++		},
++	},
++};
++
++static struct clk_debug_mux gcc_debug_mux = {
++	.priv = &debug_mux_priv,
++	.debug_offset = 0x62000,
++	.post_div_offset = 0x62004,
++	.cbcr_offset = 0x62008,
++	.src_sel_mask = 0x3ff,
++	.src_sel_shift = 0,
++	.post_div_mask = 0xf,
++	.post_div_shift = 0,
++	.post_div_val = 1,
++	.clkr = {
++		.hw.init = &(const struct clk_init_data) {
++			.name = "gcc_debug_mux",
++			.ops = &clk_debug_mux_ops,
++		},
++	},
++};
++
+ static struct clk_hw *gcc_qcs615_hws[] = {
+ 	[GPLL0_OUT_AUX2_DIV] = &gpll0_out_aux2_div.hw,
+ 	[GPLL3_OUT_AUX2_DIV] = &gpll3_out_aux2_div.hw,
+@@ -2901,6 +2938,7 @@ static struct clk_regmap *gcc_qcs615_clocks[] = {
+ 	[GPLL7] = &gpll7.clkr,
+ 	[GPLL8] = &gpll8.clkr,
+ 	[GPLL8_OUT_MAIN] = &gpll8_out_main.clkr,
++	[GCC_DEBUG_MUX] = &gcc_debug_mux.clkr,
+ };
+ 
+ static struct gdsc *gcc_qcs615_gdscs[] = {
+@@ -3009,6 +3047,16 @@ static int gcc_qcs615_probe(struct platform_device *pdev)
+ 	if (ret)
+ 		return ret;
+ 
++	/* Register mc_cc_debug_mux */
++	mc_cc_debug_mux.clkr.regmap =
++		syscon_regmap_lookup_by_phandle(pdev->dev.of_node, "qcom,mccc");
++	if (IS_ERR(mc_cc_debug_mux.clkr.regmap))
++		return PTR_ERR(mc_cc_debug_mux.clkr.regmap);
++
++	ret = devm_clk_hw_register(&pdev->dev, &mc_cc_debug_mux.clkr.hw);
++	if (ret)
++		return ret;
++
+ 	return qcom_cc_really_probe(&pdev->dev, &gcc_qcs615_desc, regmap);
+ }
+ 
+-- 
+2.34.1
+

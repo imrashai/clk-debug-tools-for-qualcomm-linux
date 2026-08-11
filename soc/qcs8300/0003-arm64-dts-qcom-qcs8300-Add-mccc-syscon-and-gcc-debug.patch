@@ -1,0 +1,43 @@
+From de648d5ff279c5d0a1d12476b8a6b95e12ad72d7 Mon Sep 17 00:00:00 2001
+From: Taniya Das <taniya.das@oss.qualcomm.com>
+Date: Tue, 11 Aug 2026 12:35:29 +0530
+Subject: [PATCH 3/3] arm64: dts: qcom: qcs8300: Add mccc syscon and gcc debug
+ mux
+
+Add the memory controller clock controller (mccc) syscon node and wire
+it to the global clock controller through the qcom,mccc phandle. This
+lets the gcc debug mux read the memory controller clock period for
+frequency measurement on the Qualcomm QCS8300 platform.
+
+Signed-off-by: Taniya Das <taniya.das@oss.qualcomm.com>
+---
+ arch/arm64/boot/dts/qcom/monaco.dtsi | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/monaco.dtsi b/arch/arm64/boot/dts/qcom/monaco.dtsi
+index 0ca7266aa175..110ad610f5f8 100644
+--- a/arch/arm64/boot/dts/qcom/monaco.dtsi
++++ b/arch/arm64/boot/dts/qcom/monaco.dtsi
+@@ -951,6 +951,11 @@ soc: soc@0 {
+ 		#address-cells = <2>;
+ 		#size-cells = <2>;
+ 
++		mccc: syscon@90ba000 {
++			compatible = "syscon";
++			reg = <0x0 0x090ba000 0x0 0x54>;
++		};
++
+ 		gcc: clock-controller@100000 {
+ 			compatible = "qcom,qcs8300-gcc";
+ 			reg = <0x0 0x00100000 0x0 0xc7018>;
+@@ -967,6 +972,7 @@ gcc: clock-controller@100000 {
+ 				 <0>,
+ 				 <0>,
+ 				 <0>;
++			qcom,mccc = <&mccc>;
+ 		};
+ 
+ 		ipcc: mailbox@408000 {
+-- 
+2.34.1
+

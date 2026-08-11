@@ -1,0 +1,106 @@
+From 513315334176b125413c329f8f2637d41122f946 Mon Sep 17 00:00:00 2001
+From: Taniya Das <taniya.das@oss.qualcomm.com>
+Date: Tue, 11 Aug 2026 12:35:29 +0530
+Subject: [PATCH 2/3] clk: qcom: qcs8300: Add debug mux for global clock
+ controller
+
+Add debug mux support for the global clock controller to measure the
+clock frequencies on the Qualcomm QCS8300 platform. The gcc debug mux
+routes clocks to the measurement block, and the mc debug mux reads the
+memory controller clock period via the mccc syscon region.
+
+Signed-off-by: Taniya Das <taniya.das@oss.qualcomm.com>
+---
+ drivers/clk/qcom/gcc-qcs8300.c | 48 ++++++++++++++++++++++++++++++++++
+ 1 file changed, 48 insertions(+)
+
+diff --git a/drivers/clk/qcom/gcc-qcs8300.c b/drivers/clk/qcom/gcc-qcs8300.c
+index 7a7f4eca40d8..15c7f56d27b7 100644
+--- a/drivers/clk/qcom/gcc-qcs8300.c
++++ b/drivers/clk/qcom/gcc-qcs8300.c
+@@ -4,6 +4,7 @@
+  */
+ 
+ #include <linux/clk-provider.h>
++#include <linux/mfd/syscon.h>
+ #include <linux/module.h>
+ #include <linux/mod_devicetable.h>
+ #include <linux/of.h>
+@@ -14,6 +15,7 @@
+ 
+ #include "clk-alpha-pll.h"
+ #include "clk-branch.h"
++#include "clk-debug.h"
+ #include "clk-pll.h"
+ #include "clk-rcg.h"
+ #include "clk-regmap.h"
+@@ -3246,6 +3248,41 @@ static struct clk_branch gcc_video_axi1_clk = {
+ 	},
+ };
+ 
++static struct measure_clk_data debug_mux_priv = {
++	.ctl_reg = 0x72038,
++	.status_reg = 0x7203c,
++	.xo_div4_cbcr = 0x6e008,
++};
++
++static struct clk_debug_mux mc_cc_debug_mux = {
++	.period_offset = 0x50,
++	.mux_sel = true,
++	.clkr = {
++		.hw.init = &(struct clk_init_data) {
++			.name = "mc_cc_debug_mux",
++			.ops = &clk_debug_mux_ops,
++		},
++	},
++};
++
++static struct clk_debug_mux gcc_debug_mux = {
++	.priv = &debug_mux_priv,
++	.debug_offset = 0x72024,
++	.post_div_offset = 0x6e000,
++	.cbcr_offset = 0x6e004,
++	.src_sel_mask = 0x1fff,
++	.src_sel_shift = 0,
++	.post_div_mask = 0xf,
++	.post_div_shift = 0,
++	.post_div_val = 2,
++	.clkr = {
++		.hw.init = &(const struct clk_init_data) {
++			.name = "gcc_debug_mux",
++			.ops = &clk_debug_mux_ops,
++		},
++	},
++};
++
+ static struct gdsc gcc_emac0_gdsc = {
+ 	.gdscr = 0xb6004,
+ 	.en_rest_wait_val = 0x2,
+@@ -3500,6 +3537,7 @@ static struct clk_regmap *gcc_qcs8300_clocks[] = {
+ 	[GCC_USB_CLKREF_EN] = &gcc_usb_clkref_en.clkr,
+ 	[GCC_VIDEO_AXI0_CLK] = &gcc_video_axi0_clk.clkr,
+ 	[GCC_VIDEO_AXI1_CLK] = &gcc_video_axi1_clk.clkr,
++	[GCC_DEBUG_MUX] = &gcc_debug_mux.clkr,
+ };
+ 
+ static struct gdsc *gcc_qcs8300_gdscs[] = {
+@@ -3613,6 +3651,16 @@ static int gcc_qcs8300_probe(struct platform_device *pdev)
+ 	/* FORCE_MEM_CORE_ON for ufs phy ice core clocks */
+ 	qcom_branch_set_force_mem_core(regmap, gcc_ufs_phy_ice_core_clk, true);
+ 
++	/* Register mc_cc_debug_mux */
++	mc_cc_debug_mux.clkr.regmap =
++		syscon_regmap_lookup_by_phandle(pdev->dev.of_node, "qcom,mccc");
++	if (IS_ERR(mc_cc_debug_mux.clkr.regmap))
++		return PTR_ERR(mc_cc_debug_mux.clkr.regmap);
++
++	ret = devm_clk_hw_register(&pdev->dev, &mc_cc_debug_mux.clkr.hw);
++	if (ret)
++		return ret;
++
+ 	return qcom_cc_really_probe(&pdev->dev, &gcc_qcs8300_desc, regmap);
+ }
+ 
+-- 
+2.34.1
+
