@@ -1,0 +1,42 @@
+From 9ae18831685e17b284847a8c7c80911e49d89d55 Mon Sep 17 00:00:00 2001
+From: Imran Shaik <imran.shaik@oss.qualcomm.com>
+Date: Thu, 15 Oct 2026 16:35:21 +0530
+Subject: [PATCH 3/3] arm64: dts: qcom: shikra: Add mccc syscon device node
+
+Add the memory controller clock controller (MCCC) syscon node and wire
+it to the global clock controller through the qcom,mccc phandle. This
+lets the GCC debug mux read the memory controller clock period for
+frequency measurement on the Qualcomm Shikra platform.
+
+Signed-off-by: Imran Shaik <imran.shaik@oss.qualcomm.com>
+---
+ arch/arm64/boot/dts/qcom/shikra.dtsi | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/shikra.dtsi b/arch/arm64/boot/dts/qcom/shikra.dtsi
+index 49f076726a20..aed1a0a58c03 100644
+--- a/arch/arm64/boot/dts/qcom/shikra.dtsi
++++ b/arch/arm64/boot/dts/qcom/shikra.dtsi
+@@ -1247,6 +1247,11 @@ llcc: system-cache-controller@e00000 {
+ 			interrupts = <GIC_SPI 539 IRQ_TYPE_LEVEL_HIGH 0>;
+ 		};
+ 
++		mccc: syscon@cba000 {
++			compatible = "syscon";
++			reg = <0x0 0x00cba000 0x0 0x54>;
++		};
++
+ 		gcc: clock-controller@1400000 {
+ 			compatible = "qcom,shikra-gcc";
+ 			reg = <0x0 0x01400000 0x0 0x1f0000>;
+@@ -1258,6 +1263,7 @@ gcc: clock-controller@1400000 {
+ 				 <0>,
+ 				 <0>,
+ 				 <0>;
++			qcom,mccc = <&mccc>;
+ 			power-domains = <&rpmpd RPMPD_VDDCX>;
+ 			#clock-cells = <1>;
+ 			#reset-cells = <1>;
+-- 
+2.34.1
+

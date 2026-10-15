@@ -1,0 +1,254 @@
+From c71bd73740da39d562a9b7f8847dcae321b52d5a Mon Sep 17 00:00:00 2001
+From: Imran Shaik <imran.shaik@oss.qualcomm.com>
+Date: Thu, 15 Oct 2026 16:30:30 +0530
+Subject: [PATCH 2/3] clk: qcom: shikra: Add debug mux for clock controllers
+
+Add debug mux support for the clock controllers to measure the clock
+frequencies on the Qualcomm Shikra platform.
+
+Signed-off-by: Imran Shaik <imran.shaik@oss.qualcomm.com>
+---
+ drivers/clk/qcom/audiocorecc-shikra.c | 24 +++++++++++++
+ drivers/clk/qcom/dispcc-qcm2290.c     | 24 +++++++++++++
+ drivers/clk/qcom/gcc-shikra.c         | 49 +++++++++++++++++++++++++++
+ drivers/clk/qcom/gpucc-qcm2290.c      | 24 +++++++++++++
+ 4 files changed, 121 insertions(+)
+
+diff --git a/drivers/clk/qcom/audiocorecc-shikra.c b/drivers/clk/qcom/audiocorecc-shikra.c
+index a6756076e642..4be4593f21b1 100644
+--- a/drivers/clk/qcom/audiocorecc-shikra.c
++++ b/drivers/clk/qcom/audiocorecc-shikra.c
+@@ -13,6 +13,7 @@
+ 
+ #include "clk-alpha-pll.h"
+ #include "clk-branch.h"
++#include "clk-debug.h"
+ #include "clk-pll.h"
+ #include "clk-rcg.h"
+ #include "clk-regmap.h"
+@@ -692,6 +693,28 @@ static struct clk_branch audio_core_cc_tx_mclk_clk = {
+ 	},
+ };
+ 
++static struct clk_debug_mux audio_core_cc_debug_mux = {
++	.debug_offset = 0x3040,
++	.post_div_offset = U32_MAX,
++	.cbcr_offset = 0x12D0,
++	.src_sel_mask = 0x1F,
++	.src_sel_shift = 0,
++	.post_div_mask = 0x1,
++	.post_div_shift = 0,
++	.post_div_val = 1,
++	.clkr = {
++		.hw.init = &(const struct clk_init_data) {
++			.name = "audio_core_cc_debug_mux",
++			.parent_data = &(const struct clk_parent_data) {
++				.fw_name = "gcc_debug_mux",
++				.name = "gcc_debug_mux",
++			},
++			.num_parents = 1,
++			.ops = &clk_debug_mux_ops,
++		},
++	},
++};
++
+ static struct clk_hw *audio_core_cc_shikra_hws[] = {
+ 	[AUDIO_CORE_CC_DIG_PLL_OUT_AUX] = &audio_core_cc_dig_pll_out_aux.hw,
+ 	[AUDIO_CORE_CC_DIG_PLL_OUT_AUX2] = &audio_core_cc_dig_pll_out_aux2.hw,
+@@ -730,6 +753,7 @@ static struct clk_regmap *audio_core_cc_shikra_clocks[] = {
+ 	[AUDIO_CORE_CC_TX_MCLK_2X_CLK] = &audio_core_cc_tx_mclk_2x_clk.clkr,
+ 	[AUDIO_CORE_CC_TX_MCLK_CLK] = &audio_core_cc_tx_mclk_clk.clkr,
+ 	[AUDIO_CORE_CC_TX_MCLK_RCG_CLK_SRC] = &audio_core_cc_tx_mclk_rcg_clk_src.clkr,
++	[AUDIO_CORE_CC_DEBUG_MUX] = &audio_core_cc_debug_mux.clkr,
+ };
+ 
+ static struct clk_alpha_pll *audio_core_cc_shikra_plls[] = {
+diff --git a/drivers/clk/qcom/dispcc-qcm2290.c b/drivers/clk/qcom/dispcc-qcm2290.c
+index 4c1eef79f41b..d6f2654c9ad3 100644
+--- a/drivers/clk/qcom/dispcc-qcm2290.c
++++ b/drivers/clk/qcom/dispcc-qcm2290.c
+@@ -17,6 +17,7 @@
+ 
+ #include "clk-alpha-pll.h"
+ #include "clk-branch.h"
++#include "clk-debug.h"
+ #include "clk-rcg.h"
+ #include "clk-regmap.h"
+ #include "clk-regmap-divider.h"
+@@ -462,6 +463,28 @@ static struct clk_branch disp_cc_sleep_clk = {
+ 	},
+ };
+ 
++static struct clk_debug_mux disp_cc_debug_mux = {
++	.debug_offset = 0x7000,
++	.post_div_offset = 0x5008,
++	.cbcr_offset = 0x500c,
++	.src_sel_mask = 0xFF,
++	.src_sel_shift = 0,
++	.post_div_mask = 0x3,
++	.post_div_shift = 0,
++	.post_div_val = 4,
++	.clkr = {
++		.hw.init = &(const struct clk_init_data) {
++			.name = "disp_cc_debug_mux",
++			.parent_data = &(const struct clk_parent_data) {
++				.fw_name = "gcc_debug_mux",
++				.name = "gcc_debug_mux",
++			},
++			.num_parents = 1,
++			.ops = &clk_debug_mux_ops,
++		},
++	},
++};
++
+ static const struct qcom_reset_map disp_cc_qcm2290_resets[] = {
+ 	[DISP_CC_MDSS_CORE_BCR] = { 0x2000 },
+ };
+@@ -502,6 +525,7 @@ static struct clk_regmap *disp_cc_qcm2290_clocks[] = {
+ 	[DISP_CC_PLL0] = &disp_cc_pll0.clkr,
+ 	[DISP_CC_SLEEP_CLK] = &disp_cc_sleep_clk.clkr,
+ 	[DISP_CC_SLEEP_CLK_SRC] = &disp_cc_sleep_clk_src.clkr,
++	[DISP_CC_DEBUG_MUX] = &disp_cc_debug_mux.clkr,
+ };
+ 
+ static struct clk_alpha_pll *disp_cc_qcm2290_plls[] = {
+diff --git a/drivers/clk/qcom/gcc-shikra.c b/drivers/clk/qcom/gcc-shikra.c
+index 787741a47a86..195289baea74 100644
+--- a/drivers/clk/qcom/gcc-shikra.c
++++ b/drivers/clk/qcom/gcc-shikra.c
+@@ -4,6 +4,7 @@
+  */
+ 
+ #include <linux/clk-provider.h>
++#include <linux/mfd/syscon.h>
+ #include <linux/mod_devicetable.h>
+ #include <linux/module.h>
+ #include <linux/platform_device.h>
+@@ -13,6 +14,7 @@
+ 
+ #include "clk-alpha-pll.h"
+ #include "clk-branch.h"
++#include "clk-debug.h"
+ #include "clk-pll.h"
+ #include "clk-rcg.h"
+ #include "clk-regmap.h"
+@@ -3994,6 +3996,41 @@ static struct clk_branch gcc_video_venus_ctl_clk = {
+ 	},
+ };
+ 
++static struct measure_clk_data debug_mux_priv = {
++	.ctl_reg = 0x62038,
++	.status_reg = 0x6203C,
++	.xo_div4_cbcr = 0x28008,
++};
++
++static struct clk_debug_mux mc_cc_debug_mux = {
++	.period_offset = 0x50,
++	.mux_sel = true,
++	.clkr = {
++		.hw.init = &(struct clk_init_data) {
++			.name = "mc_cc_debug_mux",
++			.ops = &clk_debug_mux_ops,
++		},
++	},
++};
++
++static struct clk_debug_mux gcc_debug_mux = {
++	.priv = &debug_mux_priv,
++	.debug_offset = 0x62000,
++	.post_div_offset = 0x30000,
++	.cbcr_offset = 0x30004,
++	.src_sel_mask = 0x3ff,
++	.src_sel_shift = 0,
++	.post_div_mask = 0xf,
++	.post_div_shift = 0,
++	.post_div_val = 1,
++	.clkr = {
++		.hw.init = &(const struct clk_init_data) {
++			.name = "gcc_debug_mux",
++			.ops = &clk_debug_mux_ops,
++		},
++	},
++};
++
+ static struct gdsc gcc_camss_top_gdsc = {
+ 	.gdscr = 0x58004,
+ 	.en_rest_wait_val = 0x2,
+@@ -4295,6 +4332,7 @@ static struct clk_regmap *gcc_shikra_clocks[] = {
+ 	[GPLL8_OUT_MAIN] = &gpll8_out_main.clkr,
+ 	[GPLL9] = &gpll9.clkr,
+ 	[GPLL9_OUT_MAIN] = &gpll9_out_main.clkr,
++	[GCC_DEBUG_MUX] = &gcc_debug_mux.clkr,
+ };
+ 
+ static struct gdsc *gcc_shikra_gdscs[] = {
+@@ -4406,6 +4444,17 @@ MODULE_DEVICE_TABLE(of, gcc_shikra_match_table);
+ 
+ static int gcc_shikra_probe(struct platform_device *pdev)
+ {
++	int ret;
++
++	/* Register mc_cc_debug_mux before probing GCC */
++	mc_cc_debug_mux.clkr.regmap = syscon_regmap_lookup_by_phandle(pdev->dev.of_node, "qcom,mccc");
++	if (IS_ERR(mc_cc_debug_mux.clkr.regmap))
++		return PTR_ERR(mc_cc_debug_mux.clkr.regmap);
++
++	ret = devm_clk_hw_register(&pdev->dev, &mc_cc_debug_mux.clkr.hw);
++	if (ret)
++		return ret;
++
+ 	return qcom_cc_probe(pdev, &gcc_shikra_desc);
+ }
+ 
+diff --git a/drivers/clk/qcom/gpucc-qcm2290.c b/drivers/clk/qcom/gpucc-qcm2290.c
+index f43dd8231fb2..56a42e79cac6 100644
+--- a/drivers/clk/qcom/gpucc-qcm2290.c
++++ b/drivers/clk/qcom/gpucc-qcm2290.c
+@@ -15,6 +15,7 @@
+ 
+ #include "clk-alpha-pll.h"
+ #include "clk-branch.h"
++#include "clk-debug.h"
+ #include "clk-rcg.h"
+ #include "clk-regmap.h"
+ #include "clk-regmap-divider.h"
+@@ -278,6 +279,28 @@ static struct clk_branch gpu_cc_hlos1_vote_gpu_smmu_clk = {
+ 	},
+ };
+ 
++static struct clk_debug_mux gpu_cc_debug_mux = {
++	.debug_offset = 0x1568,
++	.post_div_offset = 0x10fc,
++	.cbcr_offset = 0x1100,
++	.src_sel_mask = 0xFF,
++	.src_sel_shift = 0,
++	.post_div_mask = 0x3,
++	.post_div_shift = 0,
++	.post_div_val = 2,
++	.clkr = {
++		.hw.init = &(const struct clk_init_data) {
++			.name = "gpu_cc_debug_mux",
++			.parent_data = &(const struct clk_parent_data) {
++				.fw_name = "gcc_debug_mux",
++				.name = "gcc_debug_mux",
++			},
++			.num_parents = 1,
++			.ops = &clk_debug_mux_ops,
++		},
++	},
++};
++
+ static struct gdsc gpu_cx_gdsc = {
+ 	.gdscr = 0x106c,
+ 	.gds_hw_ctrl = 0x1540,
+@@ -319,6 +342,7 @@ static struct clk_regmap *gpu_cc_qcm2290_clocks[] = {
+ 	[GPU_CC_PLL0] = &gpu_cc_pll0.clkr,
+ 	[GPU_CC_SLEEP_CLK] = &gpu_cc_sleep_clk.clkr,
+ 	[GPU_CC_HLOS1_VOTE_GPU_SMMU_CLK] = &gpu_cc_hlos1_vote_gpu_smmu_clk.clkr,
++	[GPU_CC_DEBUG_MUX] = &gpu_cc_debug_mux.clkr,
+ };
+ 
+ static const struct qcom_reset_map gpu_cc_qcm2290_resets[] = {
+-- 
+2.34.1
+
